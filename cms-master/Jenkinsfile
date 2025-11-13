@@ -60,19 +60,20 @@ pipeline {
 
         /* ----------------------------------------------------------- */
         stage('Push to Docker Hub') {
-            environment {
-                DOCKERHUB = credentials('dockerhub')  // ✔ your Jenkins credential
-            }
-            steps {
-                bat """
-                docker login -u %DOCKERHUB_USR% -p %DOCKERHUB_PSW%
+           environment {
+    DOCKERHUB = credentials('dockerhub')
+  }
+  steps {
+    bat """
+      docker login -u %DOCKERHUB_USR% -p %DOCKERHUB_PSW%
 
-                docker tag cms-master-backend %DOCKERHUB_USR%/cms-backend:latest
-                docker tag cms-master-frontend %DOCKERHUB_USR%/cms-frontend:latest
+      docker tag cms-master-backend %DOCKERHUB_USR%/cms-backend:latest
+      docker tag cms-master-frontend %DOCKERHUB_USR%/cms-frontend:latest
 
-                docker push %DOCKERHUB_USR%/cms-backend:latest
-                docker push %DOCKERHUB_USR%/cms-frontend:latest
-                """
+      docker push %DOCKERHUB_USR%/cms-backend:latest
+      docker push %DOCKERHUB_USR%/cms-frontend:latest
+    """
+  }
             }
         }
 
