@@ -127,5 +127,5 @@ pipeline {
             bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200 || ver > nul"
         }
     }
-}
+
 
