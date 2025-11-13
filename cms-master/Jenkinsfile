@@ -8,14 +8,13 @@ pipeline {
     }
 
     environment {
-
         PROJECT_ROOT = 'cms-master'
 
         FRONTEND_DIR = 'cms-master/storyspark-content-hub-main'
         BACKEND_DIR  = 'cms-master/ems-main/backend'
         COMPOSE_FILE = 'cms-master/docker-compose.yml'
 
-        FRONTEND_PORT = '8085'
+        FRONTEND_PORT = '8081'   // corrected port from logs
         BACKEND_PORT  = '8082'
     }
 
@@ -76,32 +75,20 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                echo "Performing soft health check (does not fail pipeline)..."
+                echo "Performing health check..."
 
-                // FRONTEND CHECK
+                // --- Frontend check ---
                 bat """
-                powershell -Command "
-                Try {
-                    Invoke-WebRequest http://localhost:%FRONTEND_PORT%/ -UseBasicParsing | Out-Null;
-                    Write-Host 'Frontend OK';
-                } Catch {
-                    Write-Host 'Frontend not reachable from Jenkins. Likely running.';
-                }"
+                powershell -Command "try { (Invoke-WebRequest -Uri http://localhost:%FRONTEND_PORT%/ -UseBasicParsing).StatusCode; Write-Host 'Frontend OK' } catch { Write-Host 'Frontend Failed' }"
                 """
 
-                // BACKEND CHECK
+                // --- Backend check ---
                 bat """
-                powershell -Command "
-                Try {
-                    Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing | Out-Null;
-                    Write-Host 'Backend OK';
-                } Catch {
-                    Write-Host 'Backend not reachable from Jenkins. Likely running.';
-                }"
+                powershell -Command "try { (Invoke-WebRequest -Uri http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing).StatusCode; Write-Host 'Backend OK' } catch { Write-Host 'Backend Failed' }"
                 """
             }
         }
-    }  // ← closes "stages"
+    }  // END stages
 
     post {
         success {
@@ -115,9 +102,4 @@ pipeline {
             bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200 || ver > nul"
         }
     }
-}  // ← closes "pipeline"
-
-
-
-
-
+} // END pipeline
