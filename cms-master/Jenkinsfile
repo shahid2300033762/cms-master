@@ -8,9 +8,9 @@ pipeline {
     }
 
     environment {
+
         PROJECT_ROOT = 'cms-master'
 
-        // folder structure
         FRONTEND_DIR = 'cms-master/storyspark-content-hub-main'
         BACKEND_DIR  = 'cms-master/ems-main/backend'
         COMPOSE_FILE = 'cms-master/docker-compose.yml'
@@ -21,7 +21,6 @@ pipeline {
 
     stages {
 
-        /* ----------------------------------------------------------- */
         stage('Diagnostics') {
             steps {
                 bat """
@@ -34,28 +33,24 @@ pipeline {
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Checkout Source Code') {
             steps {
                 checkout scm
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Shut Down Old Containers') {
             steps {
                 bat "docker compose -f %COMPOSE_FILE% down || ver > nul"
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Build Docker Images') {
             steps {
                 bat "docker compose -f %COMPOSE_FILE% build --no-cache"
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Push to Docker Hub') {
             environment {
                 DOCKERHUB = credentials('dockerhub')
@@ -73,41 +68,41 @@ pipeline {
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Deploy Containers') {
             steps {
                 bat "docker compose -f %COMPOSE_FILE% up -d"
             }
         }
 
-        /* ----------------------------------------------------------- */
         stage('Health Check') {
             steps {
-        echo "Skipping strict health checks because Jenkins cannot access Docker internal ports."
+                echo "Performing soft health check (does not fail pipeline)..."
 
-        bat """
-        powershell -Command "
-        Try {
-            Invoke-WebRequest http://localhost:%FRONTEND_PORT%/ -UseBasicParsing | Out-Null;
-            Write-Host 'Frontend OK';
-        } Catch {
-            Write-Host 'Frontend unreachable from Jenkins (but likely running).';
-        }"
-        """
+                // FRONTEND CHECK
+                bat """
+                powershell -Command "
+                Try {
+                    Invoke-WebRequest http://localhost:%FRONTEND_PORT%/ -UseBasicParsing | Out-Null;
+                    Write-Host 'Frontend OK';
+                } Catch {
+                    Write-Host 'Frontend not reachable from Jenkins. Likely running.';
+                }"
+                """
 
-        bat """
-        powershell -Command "
-        Try {
-            Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing | Out-Null;
-            Write-Host 'Backend OK';
-        } Catch {
-            Write-Host 'Backend unreachable from Jenkins (but likely running).';
-        }"
-        """
-    }
-    } // END stages
+                // BACKEND CHECK
+                bat """
+                powershell -Command "
+                Try {
+                    Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing | Out-Null;
+                    Write-Host 'Backend OK';
+                } Catch {
+                    Write-Host 'Backend not reachable from Jenkins. Likely running.';
+                }"
+                """
+            }
+        }
+    }  // ← closes "stages"
 
-    /* ----------------------------------------------------------- */
     post {
         success {
             echo "🎉 Deployment SUCCESS!"
@@ -120,7 +115,8 @@ pipeline {
             bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200 || ver > nul"
         }
     }
-}   // END pipeline
+}  // ← closes "pipeline"
+
 
 
 
