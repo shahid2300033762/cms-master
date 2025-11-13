@@ -1,85 +1,130 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    PROJECT_ROOT = 'cms-master'             // ✔ your repo root folder
-    COMPOSE_FILE = 'cms-master/docker-compose.yml'   // ✔ correct path
-
-    FRONTEND_DIR = 'cms-master/storyspark-content-hub-main'
-    BACKEND_DIR  = 'cms-master/ems-main/backend'
-
-    FRONTEND_PORT = '8085'
-    BACKEND_PORT  = '8082'
-
-    DOCKER_USER = 'YOUR_DOCKERHUB_USERNAME'
-    DOCKER_PASS = 'YOUR_DOCKERHUB_PASSWORD'
-  }
-
-  stages {
-
-    stage('Diagnostics') {
-      steps {
-        bat 'echo ==== Jenkins diagnostics ===='
-        bat 'whoami'
-        bat 'cd'
-        bat 'docker --version'
-        bat 'docker compose version'
-      }
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 30, unit: 'MINUTES')
     }
 
-    stage('Pre-clean') {
-      steps {
-        bat "docker compose -f %COMPOSE_FILE% down || ver > nul"
-      }
+    environment {
+
+        // Root project folder inside the repo
+        PROJECT_ROOT = 'cms-master'
+
+        // Correct paths based on your repo
+        FRONTEND_DIR = 'cms-master/storyspark-content-hub-main'
+        BACKEND_DIR  = 'cms-master/ems-main/backend'
+        COMPOSE_FILE = 'cms-master/docker-compose.yml'
+
+        // Ports from your Docker Desktop setup
+        FRONTEND_PORT = '8085'
+        BACKEND_PORT  = '8082'
     }
 
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
+    stages {
 
-    stage('Build Docker Images') {
-      steps {
-        bat "docker compose -f %COMPOSE_FILE% build --no-cache"
-      }
-    }
+        /* ----------------------------------------------------------- */
+        stage('Diagnostics') {
+            steps {
+                bat """
+                echo ==== Jenkins Diagnostics ====
+                whoami
+                cd
+                docker --version
+                docker compose version
+                """
+            }
+        }
 
-    stage('Push to Docker Hub') {
-      steps {
-        bat """
-          docker login -u %DOCKER_USER% -p %DOCKER_PASS%
-          docker tag cms-master-backend %DOCKER_USER%/cms-backend:latest
-          docker tag cms-master-frontend %DOCKER_USER%/cms-frontend:latest
-          docker push %DOCKER_USER%/cms-backend:latest
-          docker push %DOCKER_USER%/cms-frontend:latest
-        """
-      }
-    }
+        /* ----------------------------------------------------------- */
+        stage('Checkout Source Code') {
+            steps {
+                checkout scm
+            }
+        }
 
-    stage('Deploy') {
-      steps {
-        bat "docker compose -f %COMPOSE_FILE% up -d"
-      }
-    }
+        /* ----------------------------------------------------------- */
+        stage('Shut Down Old Containers') {
+            steps {
+                bat "docker compose -f %COMPOSE_FILE% down || ver > nul"
+            }
+        }
 
-    stage('Health Check') {
-      steps {
-        bat 'powershell -Command "Start-Sleep -Seconds 5"'
-        bat 'powershell -Command "Invoke-WebRequest http://localhost:%FRONTEND_PORT%/"'
-        bat 'powershell -Command "Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health"'
-      }
-    }
+        /* ----------------------------------------------------------- */
+        stage('Build Docker Images') {
+            steps {
+                bat "docker compose -f %COMPOSE_FILE% build --no-cache"
+            }
+        }
 
-  }
+        /* ----------------------------------------------------------- */
+        stage('Push to Docker Hub') {
+            environment {
+                DOCKERHUB = credentials('dockerhub')  // ✔ your Jenkins credential
+            }
+            steps {
+                bat """
+                docker login -u %DOCKERHUB_USR% -p %DOCKERHUB_PSW%
 
-  post {
-    success {
-      echo "Deployment SUCCESS"
+                docker tag cms-master-backend %DOCKERHUB_USR%/cms-backend:latest
+                docker tag cms-master-frontend %DOCKERHUB_USR%/cms-frontend:latest
+
+                docker push %DOCKERHUB_USR%/cms-backend:latest
+                docker push %DOCKERHUB_USR%/cms-frontend:latest
+                """
+            }
+        }
+
+        /* ----------------------------------------------------------- */
+        stage('Deploy Containers') {
+            steps {
+                bat "docker compose -f %COMPOSE_FILE% up -d"
+            }
+        }
+
+        /* ----------------------------------------------------------- */
+        stage('Health Check') {
+            steps {
+                bat 'powershell -Command "Start-Sleep -Seconds 5"'
+
+                // Frontend Health
+                bat """
+                powershell -Command "
+                Try {
+                    Invoke-WebRequest http://localhost:%FRONTEND_PORT%/ -UseBasicParsing | Out-Null;
+                    Write-Host 'Frontend OK';
+                } Catch {
+                    Write-Host 'Frontend FAILED';
+                }"
+                """
+
+                // Backend Health
+                bat """
+                powershell -Command "
+                Try {
+                    Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing | Out-Null;
+                    Write-Host 'Backend OK';
+                } Catch {
+                    Write-Host 'Backend FAILED';
+                }"
+                """
+            }
+        }
+    } // end stages
+
+    /* ----------------------------------------------------------- */
+    post {
+        success {
+            echo "🎉 Deployment SUCCESS!"
+            echo "Frontend → http://localhost:${env.FRONTEND_PORT}"
+            echo "Backend  → http://localhost:${env.BACKEND_PORT}"
+        }
+
+        failure {
+            echo "❌ Deployment FAILED — showing logs..."
+            bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200 || ver > nul"
+        }
     }
-    failure {
-      echo "Deployment FAILED. Showing logs..."
-      bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200"
-    }
-  }
 }
+
