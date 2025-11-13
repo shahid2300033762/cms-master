@@ -1,22 +1,13 @@
 pipeline {
   agent any
 
-  options {
-    timestamps()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
-    timeout(time: 30, unit: 'MINUTES')
-  }
-
   environment {
-    PROJECT_NAME = 'cms-master'
+    PROJECT_ROOT = 'cms-master'             // ✔ your repo root folder
+    COMPOSE_FILE = 'cms-master/docker-compose.yml'   // ✔ correct path
 
-    // ✔ Corrected paths
-    FRONTEND_DIR = 'storyspark-content-hub-main'
-    BACKEND_DIR  = 'ems-main/backend'
+    FRONTEND_DIR = 'cms-master/storyspark-content-hub-main'
+    BACKEND_DIR  = 'cms-master/ems-main/backend'
 
-    COMPOSE_FILE = 'docker-compose.yml'
-
-    // ✔ Corrected ports based on Docker Desktop screenshot
     FRONTEND_PORT = '8085'
     BACKEND_PORT  = '8082'
 
@@ -36,13 +27,13 @@ pipeline {
       }
     }
 
-    stage('Pre-clean (down old stack)') {
+    stage('Pre-clean') {
       steps {
-        bat 'docker compose -f %COMPOSE_FILE% down || ver > nul'
+        bat "docker compose -f %COMPOSE_FILE% down || ver > nul"
       }
     }
 
-    stage('Checkout Source Code') {
+    stage('Checkout') {
       steps {
         checkout scm
       }
@@ -50,7 +41,7 @@ pipeline {
 
     stage('Build Docker Images') {
       steps {
-        bat 'docker compose -f %COMPOSE_FILE% build --no-cache'
+        bat "docker compose -f %COMPOSE_FILE% build --no-cache"
       }
     }
 
@@ -58,45 +49,37 @@ pipeline {
       steps {
         bat """
           docker login -u %DOCKER_USER% -p %DOCKER_PASS%
-
-          REM ✔ Corrected image names to match compose
           docker tag cms-master-backend %DOCKER_USER%/cms-backend:latest
           docker tag cms-master-frontend %DOCKER_USER%/cms-frontend:latest
-
           docker push %DOCKER_USER%/cms-backend:latest
           docker push %DOCKER_USER%/cms-frontend:latest
         """
       }
     }
 
-    stage('Deploy (Docker Compose Up)') {
+    stage('Deploy') {
       steps {
-        bat 'docker compose -f %COMPOSE_FILE% up -d'
+        bat "docker compose -f %COMPOSE_FILE% up -d"
       }
     }
 
     stage('Health Check') {
       steps {
         bat 'powershell -Command "Start-Sleep -Seconds 5"'
-
-        bat 'powershell -Command "Try { Invoke-WebRequest http://localhost:%FRONTEND_PORT%/ -UseBasicParsing | Out-Null; Write-Host \'Frontend OK\'; } Catch { Write-Host \'Frontend warning\' }"'
-
-        bat 'powershell -Command "Try { Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health -UseBasicParsing | Out-Null; Write-Host \'Backend OK\'; } Catch { Write-Host \'Backend warning\' }"'
+        bat 'powershell -Command "Invoke-WebRequest http://localhost:%FRONTEND_PORT%/"'
+        bat 'powershell -Command "Invoke-WebRequest http://localhost:%BACKEND_PORT%/actuator/health"'
       }
     }
+
   }
 
   post {
     success {
-      echo "🎉 Deployment SUCCESS!"
-      echo "Frontend → http://localhost:${env.FRONTEND_PORT}"
-      echo "Backend  → http://localhost:${env.BACKEND_PORT}"
+      echo "Deployment SUCCESS"
     }
-
     failure {
-      echo "❌ Deployment Failed — showing logs"
-      bat 'docker compose -f %COMPOSE_FILE% logs --no-color --tail=200'
+      echo "Deployment FAILED. Showing logs..."
+      bat "docker compose -f %COMPOSE_FILE% logs --no-color --tail=200"
     }
   }
-
 }
