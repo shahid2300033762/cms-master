@@ -3,20 +3,24 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Configure base path via env for flexibility; default to root
   base: process.env.VITE_BASE_PATH ?? "/",
 
   server: {
     host: "::",
-    port: 8080,
+    port: process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 8085,
+    open: true,
+
     proxy: {
       "/api": {
-        target: "http://localhost:8082", // backend in dev mode
+        target: process.env.VITE_API_URL,
         changeOrigin: true,
       },
     },
+  },
+
+  define: {
+    "import.meta.env.VITE_API_URL": JSON.stringify(process.env.VITE_API_URL),
   },
 
   plugins: [

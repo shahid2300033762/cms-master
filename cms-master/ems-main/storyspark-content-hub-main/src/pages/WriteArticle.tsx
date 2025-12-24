@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
@@ -13,7 +14,9 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Upload, ImagePlus, Loader2 } from 'lucide-react';
 
-const WriteArticle: React.FC = () => {
+interface WriteArticleProps { editMode?: boolean }
+
+const WriteArticle: React.FC<WriteArticleProps> = ({ editMode = false }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [title, setTitle] = useState('');
@@ -23,6 +26,8 @@ const WriteArticle: React.FC = () => {
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTag, setCurrentTag] = useState('');
+  const params = useParams();
+  const idParam = params.id;
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -90,15 +95,27 @@ const WriteArticle: React.FC = () => {
     setIsSubmitting(true);
     try {
       const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      await api.post('/posts', {
-        title,
-        slug,
-        content,
-        excerpt,
-        coverImage: coverImage || undefined,
-        authorId: typeof user.id === 'string' ? Number(user.id) : user.id,
-        tagIds: [],
-      });
+      if (editMode && idParam) {
+        await api.put(`/posts/${idParam}`, {
+          title,
+          slug,
+          content,
+          excerpt,
+          coverImage: coverImage || undefined,
+          authorId: typeof user.id === 'string' ? Number(user.id) : user.id,
+          tagNames: tags,
+        });
+      } else {
+        await api.post('/posts', {
+          title,
+          slug,
+          content,
+          excerpt,
+          coverImage: coverImage || undefined,
+          authorId: typeof user.id === 'string' ? Number(user.id) : user.id,
+          tagNames: tags,
+        });
+      }
       toast({
         title: 'Article published',
         description: 'Your article has been published successfully!',
@@ -114,6 +131,23 @@ const WriteArticle: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (editMode && idParam) {
+      (async () => {
+        try {
+          const post = await api.get(`/posts/${idParam}`);
+          setTitle(post.title || '');
+          setContent(post.content || '');
+          setExcerpt(post.excerpt || '');
+          setCoverImage(post.coverImage || null);
+          setTags(post.tags || []);
+        } catch (err) {
+          toast({ title: 'Error', description: 'Failed to load article for edit', variant: 'destructive' });
+        }
+      })();
+    }
+  }, [editMode, idParam]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
@@ -296,10 +330,10 @@ const WriteArticle: React.FC = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing...
+                    {editMode ? 'Updating...' : 'Publishing...'}
                   </>
                 ) : (
-                  'Publish Article'
+                  editMode ? 'Update Article' : 'Publish Article'
                 )}
               </Button>
               <Button 

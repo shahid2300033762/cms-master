@@ -1,5 +1,4 @@
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
-
+const BASE_URL =(import.meta as any).env?.VITE_API_URL;
 async function request(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: {
