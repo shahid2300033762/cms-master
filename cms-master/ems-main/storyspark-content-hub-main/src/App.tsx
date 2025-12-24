@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,19 +21,19 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      {/** Use Vite's BASE_URL for consistent routing in all modes **/}
-      <BrowserRouter basename={(import.meta.env.BASE_URL || "/").replace(/\/$/, "")}>
+
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AuthProvider>
           <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/posts" element={<Posts />} />
-          <Route path="/post/:slug" element={<PostPage />} />
-          <Route path="/write" element={<WriteArticle />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/posts" element={<Posts />} />
+            <Route path="/post/:slug" element={<PostPage />} />
+            <Route path="/write" element={<WriteArticle />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
